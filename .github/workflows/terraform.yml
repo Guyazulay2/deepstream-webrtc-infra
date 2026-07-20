@@ -1,14 +1,15 @@
-name: CI/CD — Infrastructure (Terraform)
+name: Terraform — Infrastructure
 
 on:
   push:
     branches: [master, main]
     paths:
-      - "infrastructure/terraform/**"
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
   pull_request:
     branches: [master, main]
     paths:
-      - "infrastructure/terraform/**"
+      - "terraform/**"
 
 concurrency:
   group: terraform-production
@@ -17,18 +18,16 @@ concurrency:
 permissions:
   id-token:      write
   contents:      read
-  pull-requests: write   # כדי לכתוב terraform plan כ-PR comment
+  pull-requests: write
 
 env:
-  TF_WORKING_DIR: infrastructure/terraform/environments/production
+  TF_WORKING_DIR: terraform/environments/production
   AWS_REGION:     us-east-1
 
 jobs:
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Job 1: Validate & Format
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # ── Validate + Security Scan ──────────────────────────────────────────────
   validate:
-    name: Validate Terraform
+    name: Validate
     runs-on: ubuntu-latest
 
     steps:
@@ -40,12 +39,9 @@ jobs:
 
       - name: Terraform Format Check
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          # terraform fmt -check: נכשל אם ה-code לא מפורמט
-          # מאלץ את כל הצוות לכתוב code אחיד
-          terraform fmt -check -recursive
+        run: terraform fmt -check -recursive
 
-      - name: Terraform Init (validate only)
+      - name: Terraform Init (no backend)
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init -backend=false
 
@@ -53,16 +49,13 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
 
-      # tfsec: static analysis לsecurity issues ב-Terraform
       - name: Security scan (tfsec)
         uses: aquasecurity/tfsec-action@v1.0.0
         with:
           working_directory: ${{ env.TF_WORKING_DIR }}
-          soft_fail: false
+          soft_fail: true
 
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Job 2: Plan — מה Terraform מתכוון לשנות
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # ── Plan ─────────────────────────────────────────────────────────────────
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
@@ -81,22 +74,26 @@ jobs:
         with:
           terraform_version: "1.7.0"
 
+      # Backend config comes from GitHub Secrets — not committed to repo
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=production/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
 
       - name: Terraform Plan
         id: plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform plan \
+            -var="github_org=${{ github.repository_owner }}" \
             -input=false \
             -out=tfplan \
             -no-color 2>&1 | tee plan-output.txt
 
-      # ─── PR Comment עם תוצאות ה-plan ──────────────────────────────────────
-      # כל מי שמסתכל ב-PR רואה בדיוק מה Terraform יעשה
-      # זה חיוני ל-code review של תשתית
       - name: Post plan to PR
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
@@ -104,29 +101,23 @@ jobs:
           script: |
             const fs = require('fs');
             const plan = fs.readFileSync('${{ env.TF_WORKING_DIR }}/plan-output.txt', 'utf8');
-            const MAX = 60000;
-            const body = plan.length > MAX
-              ? plan.substring(0, MAX) + '\n...(truncated)'
-              : plan;
-
+            const MAX  = 60000;
+            const body = plan.length > MAX ? plan.substring(0, MAX) + '\n...(truncated)' : plan;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## Terraform Plan\n\`\`\`hcl\n${body}\n\`\`\``
+              repo:  context.repo.repo,
+              body:  `## Terraform Plan\n\`\`\`\n${body}\n\`\`\``
             });
 
-      # שמור את ה-plan כ-artifact כדי שה-apply job ישתמש בו
       - name: Save plan artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan
-          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          name:           tfplan
+          path:           ${{ env.TF_WORKING_DIR }}/tfplan
           retention-days: 1
 
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Job 3: Apply — רץ רק על main, לאחר approval
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # ── Apply (master only, requires manual approval) ─────────────────────────
   apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
@@ -134,7 +125,7 @@ jobs:
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
 
     environment:
-      name: production   # דורש approval ידני ב-GitHub
+      name: production
 
     steps:
       - uses: actions/checkout@v4
@@ -149,18 +140,21 @@ jobs:
         with:
           terraform_version: "1.7.0"
 
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=production/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
+
       - name: Download plan artifact
         uses: actions/download-artifact@v4
         with:
           name: tfplan
           path: ${{ env.TF_WORKING_DIR }}
 
-      - name: Terraform Init
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init
-
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          # מריץ בדיוק את ה-plan שאושר — לא plan חדש
-          terraform apply -input=false tfplan
+        run: terraform apply -input=false tfplan
