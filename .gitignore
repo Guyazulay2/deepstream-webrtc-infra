@@ -1,0 +1,19 @@
+# ─── Terraform ───────────────────────────────────────────────────────────────
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+.terraform.lock.hcl
+terraform/environments/production/backend.hcl
+
+# ─── Secrets ─────────────────────────────────────────────────────────────────
+*.env
+.env*
+!*.example
+secrets/
+*.pem
+*.key
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

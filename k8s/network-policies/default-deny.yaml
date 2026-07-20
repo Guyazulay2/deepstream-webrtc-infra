@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: deepstream-webrtc
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-ingress
+  namespace: deepstream-webrtc
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: deepstream-webrtc
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 5004
+          protocol: UDP
+        - port: 5005
+          protocol: UDP
+  egress:
+    - {}   # allow all egress (ECR pull, STUN/TURN, etc.)

@@ -1,0 +1,6 @@
+# העתק ל: infrastructure/terraform/backend.hcl
+# מלא את שם ה-bucket שהתקבל מ: make bootstrap
+# הקובץ הזה לא מועלה ל-git (.gitignore)
+
+bucket = "deepstream-webrtc-tfstate-YOUR_ACCOUNT_ID"
+region = "us-east-1"
