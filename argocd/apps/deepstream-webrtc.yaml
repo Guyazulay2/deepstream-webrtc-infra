@@ -12,7 +12,7 @@ spec:
   project: default
 
   source:
-    repoURL:        https://github.com/guyazulay2/deepstream-webrtc-klv.git
+    repoURL:        https://github.com/Guyazulay2/webrtc_droneV2.git
     targetRevision: HEAD
     path:           helm/deepstream-webrtc
     helm:

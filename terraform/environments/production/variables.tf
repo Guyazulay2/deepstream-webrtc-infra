@@ -11,7 +11,7 @@ variable "github_org" {
 }
 
 variable "github_repo" {
-  default = "deepstream-webrtc-klv"
+  default = "webrtc_droneV2"
 }
 
 variable "turn_realm" {
