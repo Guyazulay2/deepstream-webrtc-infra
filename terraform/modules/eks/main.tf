@@ -165,7 +165,7 @@ resource "aws_security_group_rule" "alb_to_pods_http" {
   protocol                 = "tcp"
   security_group_id        = module.eks.node_security_group_id
   source_security_group_id = aws_security_group.alb.id
-  description              = "ALB → FastAPI"
+  description              = "ALB to FastAPI"
 }
 
 resource "aws_security_group_rule" "nlb_udp_rtp" {
@@ -175,7 +175,7 @@ resource "aws_security_group_rule" "nlb_udp_rtp" {
   protocol          = "udp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = module.eks.node_security_group_id
-  description       = "NLB → RTP/KLV UDP"
+  description       = "NLB to RTP-KLV UDP"
 }
 
 resource "aws_security_group_rule" "nlb_rtsp" {
@@ -185,7 +185,7 @@ resource "aws_security_group_rule" "nlb_rtsp" {
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = module.eks.node_security_group_id
-  description       = "NLB → RTSP"
+  description       = "NLB to RTSP"
 }
 
 # ─── Security Group: ALB ─────────────────────────────────────────────────────

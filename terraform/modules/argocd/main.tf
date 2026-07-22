@@ -26,7 +26,11 @@ resource "helm_release" "argocd" {
           "alb.ingress.kubernetes.io/backend-protocol" = "HTTPS"
         }
         tls = true
-      } : { enabled = false }
+        } : {
+        enabled     = false
+        annotations = {}
+        tls         = false
+      }
     }
     configs = {
       params = {
@@ -37,45 +41,10 @@ resource "helm_release" "argocd" {
   })]
 }
 
-# ─── ArgoCD Application — auto-deploys from Helm chart in the app repo ───────
-resource "kubernetes_manifest" "app" {
-  manifest = {
-    apiVersion = "argoproj.io/v1alpha1"
-    kind       = "Application"
-    metadata = {
-      name      = var.project
-      namespace = "argocd"
-      finalizers = ["resources-finalizer.argocd.argoproj.io"]
-    }
-    spec = {
-      project = "default"
-      source = {
-        repoURL        = var.app_repo_url
-        targetRevision = "HEAD"
-        path           = var.app_helm_path
-        helm = {
-          valueFiles = ["values.yaml", "values-production.yaml"]
-        }
-      }
-      destination = {
-        server    = "https://kubernetes.default.svc"
-        namespace = var.app_namespace
-      }
-      syncPolicy = {
-        automated = {
-          prune    = true
-          selfHeal = true
-        }
-        syncOptions = [
-          "CreateNamespace=true",
-          "ServerSideApply=true"
-        ]
-      }
-    }
-  }
-
-  depends_on = [helm_release.argocd]
-}
+# ArgoCD Application is applied separately after the cluster is ready:
+#   kubectl apply -f argocd/apps/deepstream-webrtc.yaml
+# This avoids the chicken-and-egg problem where Terraform tries to connect
+# to a cluster that doesn't exist yet during plan.
 
 # ─── Admin password stored in Secrets Manager (retrieve after first apply) ───
 # kubectl get secret argocd-initial-admin-secret -n argocd \

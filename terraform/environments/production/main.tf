@@ -32,7 +32,7 @@ module "vpc" {
   cluster_name         = var.cluster_name
   region               = var.aws_region
   enable_flow_logs     = true
-  enable_vpc_endpoints = false  # set true for production (adds ~$45/mo)
+  enable_vpc_endpoints = false # set true for production (adds ~$45/mo)
   tags                 = local.tags
 }
 
