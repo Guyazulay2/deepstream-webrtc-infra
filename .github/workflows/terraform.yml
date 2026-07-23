@@ -35,7 +35,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.0"
+          terraform_version: "1.10.0"
 
       - name: Terraform Format Check
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -72,7 +72,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.0"
+          terraform_version: "1.10.0"
 
       # Backend config comes from GitHub Secrets — not committed to repo
       - name: Terraform Init
@@ -138,7 +138,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.0"
+          terraform_version: "1.10.0"
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
