@@ -28,9 +28,15 @@ resource "aws_iam_role" "github_actions" {
         StringLike = {
           # מגביל לrepos הספציפיים שלך בלבד — אבטחה קריטית!
           # app repo (build/push/deploy) + infra repo (terraform plan/apply)
+          #
+          # deepstream-webrtc-infra was renamed at some point, so GitHub embeds
+          # immutable org/repo IDs in the sub claim for it (anti-spoofing after
+          # a rename): repo:ORG@orgId/REPO@repoId:... instead of the plain form.
+          # Confirmed via CloudTrail AssumeRoleWithWebIdentity events.
           "token.actions.githubusercontent.com:sub" = [
             "repo:${var.github_org}/${var.github_repo}:*",
             "repo:${var.github_org}/${var.infra_repo}:*",
+            "repo:${var.github_org}@${var.infra_repo_github_org_id}/${var.infra_repo}@${var.infra_repo_github_id}:*",
           ]
         }
       }

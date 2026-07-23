@@ -127,10 +127,13 @@ module "eks" {
   enable_cluster_creator_admin_permissions = true
 
   cluster_addons = {
-    coredns            = { most_recent = true }
-    kube-proxy         = { most_recent = true }
-    vpc-cni            = { most_recent = true }
-    aws-ebs-csi-driver = { most_recent = true }
+    coredns    = { most_recent = true }
+    kube-proxy = { most_recent = true }
+    vpc-cni    = { most_recent = true }
+    aws-ebs-csi-driver = {
+      most_recent              = true
+      service_account_role_arn = aws_iam_role.ebs_csi.arn
+    }
   }
 
   eks_managed_node_groups = {
@@ -218,6 +221,33 @@ resource "aws_security_group" "alb" {
   }
 
   tags = merge(var.tags, { Name = "${var.cluster_name}-alb-sg" })
+}
+
+# ─── EBS CSI Driver (IRSA) ────────────────────────────────────────────────────
+# Without this role the addon's service account has no AWS credentials, so the
+# controller pods crash-loop trying to reach the EC2 API (DescribeVolumes etc).
+resource "aws_iam_role" "ebs_csi" {
+  name = "${var.cluster_name}-ebs-csi-driver"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Federated = module.eks.oidc_provider_arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${module.eks.oidc_provider}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          "${module.eks.oidc_provider}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
 # ─── ALB Ingress Controller ───────────────────────────────────────────────────
@@ -316,7 +346,7 @@ resource "helm_release" "external_secrets" {
   repository       = "https://charts.external-secrets.io"
   chart            = "external-secrets"
   namespace        = "external-secrets"
-  version          = "0.9.11"
+  version          = "0.9.20"
   create_namespace = true
 
   set {
@@ -328,5 +358,9 @@ resource "helm_release" "external_secrets" {
     value = aws_iam_role.external_secrets.arn
   }
 
-  depends_on = [module.eks]
+  # aws-load-balancer-controller's mutating webhook intercepts pod creation
+  # cluster-wide; without this ordering its pods may not be ready yet and any
+  # other release's pod creation fails with "no endpoints available for the
+  # webhook service".
+  depends_on = [module.eks, helm_release.alb_controller]
 }
