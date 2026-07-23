@@ -171,6 +171,9 @@ resource "aws_instance" "coturn" {
     encrypted             = true
   }
 
+  # aws_eip.coturn has no dependency on aws_instance, so it is created first.
+  # Passing its public_ip here means turnserver.conf always gets the correct EIP,
+  # not a temporary public IP from IMDS (which changes before EIP association).
   user_data = base64encode(templatefile("${path.module}/coturn-userdata.sh.tpl", {
     turn_secret    = random_password.turn_secret.result
     realm          = var.realm
@@ -178,6 +181,7 @@ resource "aws_instance" "coturn" {
     secret_arn     = aws_secretsmanager_secret.turn_secret.arn
     min_relay_port = 49152
     max_relay_port = 65535
+    public_ip      = aws_eip.coturn.public_ip
   }))
 
   tags = merge(var.tags, { Name = "${var.name}-coturn" })

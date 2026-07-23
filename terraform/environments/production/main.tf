@@ -46,6 +46,9 @@ module "eks" {
   # Restrict kubectl endpoint to your IP/VPN — use "0.0.0.0/0" only during setup
   endpoint_public_access_cidrs = var.endpoint_public_access_cidrs
 
+  # CI's IAM role also needs a Kubernetes-level access entry (separate from AWS IAM)
+  github_actions_role_arn = module.iam.github_actions_role_arn
+
   tags = local.tags
 }
 

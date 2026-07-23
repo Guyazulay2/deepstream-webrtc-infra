@@ -12,7 +12,10 @@ variable "subnet_ids" {
 
 variable "kubernetes_version" {
   type    = string
-  default = "1.35"
+  # Was bumped to 1.35, but that replaces the node group (brief downtime) —
+  # holding at 1.32 for now so it can be applied deliberately, decoupled from
+  # the CI access-entry fix.
+  default = "1.32"
 }
 
 variable "node_instance_type" {
@@ -50,4 +53,10 @@ variable "endpoint_public_access_cidrs" {
 variable "tags" {
   type    = map(string)
   default = {}
+}
+
+variable "github_actions_role_arn" {
+  description = "IAM role assumed by CI (terraform apply) — granted cluster-admin EKS access so helm_release/kubernetes providers can reach the API server"
+  type        = string
+  default     = ""
 }

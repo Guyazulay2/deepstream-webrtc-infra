@@ -8,9 +8,10 @@ apt-get install -y coturn awscli
 # Enable coturn service
 sed -i 's/#TURNSERVER_ENABLED=1/TURNSERVER_ENABLED=1/' /etc/default/coturn
 
-# Detect private IP
+# Private IP from IMDS; public IP is the Elastic IP passed from Terraform
+# (not from IMDS, which would return a temp IP before EIP association).
 PRIVATE_IP=$(curl -sf http://169.254.169.254/latest/meta-data/local-ipv4)
-PUBLIC_IP=$(curl -sf http://169.254.169.254/latest/meta-data/public-ipv4)
+PUBLIC_IP="${public_ip}"
 
 # Write coturn config
 cat > /etc/turnserver.conf <<EOF
@@ -25,10 +26,9 @@ external-ip=$${PUBLIC_IP}/$${PRIVATE_IP}
 realm=${realm}
 
 # REST API auth (HMAC-SHA1 time-limited credentials)
-# Never store actual user passwords — backend generates credentials on the fly.
+# use-auth-secret implies lt-cred-mech; do not set both.
 use-auth-secret
 static-auth-secret=${turn_secret}
-lt-cred-mech
 
 # Relay port range (must match security group)
 min-port=${min_relay_port}
@@ -40,7 +40,8 @@ verbose
 
 # Security
 no-multicast-peers
-denied-peer-ip=10.0.0.0-10.255.255.255
+# RFC1918 blocked except for direct VPC-internal paths (EKS pods are 10.x.x.x).
+# Removed 10.0.0.0/8 deny — GStreamer pods on the same VPC must reach the relay.
 denied-peer-ip=192.168.0.0-192.168.255.255
 denied-peer-ip=172.16.0.0-172.31.255.255
 EOF

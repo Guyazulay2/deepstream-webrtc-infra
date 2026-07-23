@@ -126,6 +126,22 @@ module "eks" {
   # Grant the Terraform caller admin access (needed for applying K8s resources)
   enable_cluster_creator_admin_permissions = true
 
+  # CI assumes a different IAM role than whoever created the cluster — without
+  # an explicit access entry, helm_release/kubernetes providers get "the server
+  # has asked for the client to provide credentials" even with full AWS IAM
+  # permissions, since EKS authorization is a separate layer from IAM.
+  access_entries = var.github_actions_role_arn == "" ? {} : {
+    github_actions = {
+      principal_arn = var.github_actions_role_arn
+      policy_associations = {
+        admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+  }
+
   cluster_addons = {
     coredns    = { most_recent = true }
     kube-proxy = { most_recent = true }
