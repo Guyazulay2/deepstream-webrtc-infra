@@ -53,6 +53,26 @@ resource "aws_iam_role_policy_attachment" "github_ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
 
+# Terraform (infra repo): full-stack plan/apply needs to read/write EC2 (VPC,
+# security groups, launch templates, coturn instance), EKS (cluster, node
+# groups, addons — AWS ships no narrower managed policy for an external
+# caller to manage EKS via API), KMS, and Secrets Manager. There's no tighter
+# official combo than PowerUserAccess (everything except IAM) + IAMFullAccess
+# (Terraform creates/attaches IRSA roles for ebs-csi, alb-controller,
+# external-secrets, coturn, and this role itself) — together that's
+# effectively admin minus Organizations/Account actions. Since this role is
+# shared with the app repo's build/push workflow, that workflow now also
+# carries this access even though it only needs ECR push.
+resource "aws_iam_role_policy_attachment" "github_terraform_power_user" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "github_terraform_iam" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = "arn:aws:iam::aws:policy/IAMFullAccess"
+}
+
 # EKS: update kubeconfig + deploy
 resource "aws_iam_role_policy" "github_eks" {
   name = "eks-deploy"

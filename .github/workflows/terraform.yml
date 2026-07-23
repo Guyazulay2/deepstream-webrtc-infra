@@ -88,6 +88,7 @@ jobs:
         id: plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
+          set -o pipefail
           terraform plan \
             -var="github_org=${{ github.repository_owner }}" \
             -input=false \
